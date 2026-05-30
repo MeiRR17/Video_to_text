@@ -1,0 +1,41 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Temporary files
+temp_audio/
+*.tmp
+*.temp
+
+# Output files (user generated)
+output/*
+!output/.gitkeep
+
+# Input videos (user content)
+Input/*
+!Input/.gitkeep
+
+# Test files
+test_single.wav
+*.test
+
+# whisper.cpp build artifacts (keep as submodule)
+whisper.cpp/build/
+whisper.cpp/samples/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
