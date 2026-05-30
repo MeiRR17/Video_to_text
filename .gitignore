@@ -20,9 +20,8 @@ Input/*
 test_single.wav
 *.test
 
-# whisper.cpp build artifacts (keep as submodule)
-whisper.cpp/build/
-whisper.cpp/samples/
+# whisper.cpp (install separately per README)
+whisper.cpp/
 
 # Python
 __pycache__/
