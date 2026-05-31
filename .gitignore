@@ -1,0 +1,39 @@
+# Ignore large transcript files
+*/transcript.txt
+
+# Ignore Python cache
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Ignore virtual environments
+venv/
+env/
+ENV/
+
+# Ignore IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Ignore OS files
+.DS_Store
+Thumbs.db
+
+# Ignore Jupyter Notebook checkpoints
+.ipynb_checkpoints
+
+# Ignore data files
+*.csv
+*.json
+*.pkl
+*.h5
+*.pt
+*.pth
+
+# Ignore logs
+*.log
