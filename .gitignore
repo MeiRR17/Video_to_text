@@ -8,9 +8,12 @@ temp_audio/
 *.tmp
 *.temp
 
-# Output files (user generated)
+# Output files - keep transcripts but ignore temp files
 output/*
 !output/.gitkeep
+!output/**/*.txt
+!output/**/*.srt
+!output/**/*.vtt
 
 # Input videos (user content)
 Input/*
