@@ -11,6 +11,7 @@ temp_audio/
 # Output files - keep transcripts but ignore temp files
 output/*
 !output/.gitkeep
+!output/audio/
 !output/**/*.txt
 !output/**/*.srt
 !output/**/*.vtt
