@@ -1,3 +1,7 @@
+> **Script consolidation (2026-11-03):** Selected utility scripts from this repository were integrated into [Learning_Modules/tools/whisper-transcription](https://github.com/MeiRR17/Learning_Modules/tree/main/tools/whisper-transcription), via [PR #4](https://github.com/MeiRR17/Learning_Modules/pull/4). The import includes source provenance and CI syntax/content checks. The original repository remains accessible, may contain additional data or configuration, and has **not been archived or deleted**. Consult the consolidated README for exclusions and portability changes.
+
+---
+
 # Video to Text Transcription Tool
 
 An automated video transcription pipeline using OpenAI's Whisper.cpp, optimized for Hebrew lecture videos on Apple Silicon Macs.
