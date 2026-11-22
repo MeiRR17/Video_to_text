@@ -209,3 +209,21 @@ Feel free to submit issues or improvements:
 
 **Author**: MeiRR17  
 **Repository**: https://github.com/MeiRR17/Video_to_text
+
+## Portable recursive batch mode (feature branch)
+
+The updated `transcribe_all.sh` now discovers lecture videos recursively under `Input/`, including any course/subfolder and the `.mp4`, `.mkv`, `.mov`, `.m4v`, and `.webm` extensions. It no longer assumes three fixed course folders or one developer's absolute macOS path.
+
+Run from the cloned repository after installing ffmpeg and whisper.cpp:
+
+```bash
+./transcribe_all.sh
+./transcribe_all.sh --force
+BASE_DIR="$HOME/Lectures" WHISPER_THREADS=6 ./transcribe_all.sh
+```
+
+Override `BASE_DIR`, `INPUT_DIR`, `OUTPUT_DIR`, `WHISPER_DIR`, `MODEL_PATH`, `WHISPER_CLI`, and `WHISPER_THREADS` as required. Default paths are relative to the script itself, so the repository works without editing paths in the source. The script requires the model and CLI executable to already exist.
+
+Files are staged in a unique temporary directory within their destination folder. Existing TXT/SRT/VTT files are left untouched if extraction or transcription fails; new results are published after all three formats have been produced. The destination preserves the relative directory structure and full input filename: `Input/course/lecture.mp4` produces `output/course/lecture.mp4.txt`, `.srt`, and `.vtt`. This prevents name collisions between videos sharing a stem but having different file extensions.
+
+An existing set of three nonempty outputs is skipped when newer than the source video and the model; `--force` reprocesses everything. The script counts failures, continues with subsequent files, and exits with a nonzero code if any video fails. This is a file-timestamp cache, not proof that the model settings or content hashes remain unchanged. Transcript cleanup remains a separate optional command. Earlier instructions above show the legacy fixed-folder behavior and output names; this section supersedes them for this branch.
