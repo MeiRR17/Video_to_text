@@ -1,135 +1,87 @@
-#!/bin/bash
+#!/usr/bin/env bash
+# Recursive Hebrew transcription. Override paths and thread count via environment.
+set -uo pipefail
+SCRIPT_DIR="$(cd "$(dirname "\${BASH_SOURCE[0]}")" && pwd -P)"
+BASE_DIR="\${BASE_DIR:-$SCRIPT_DIR}"
+INPUT_DIR="\${INPUT_DIR:-$BASE_DIR/Input}"
+OUTPUT_DIR="\${OUTPUT_DIR:-$BASE_DIR/output}"
+WHISPER_DIR="\${WHISPER_DIR:-$BASE_DIR/whisper.cpp}"
+MODEL_PATH="\${MODEL_PATH:-$WHISPER_DIR/models/ggml-large-v3.bin}"
+WHISPER_CLI="\${WHISPER_CLI:-$WHISPER_DIR/build/bin/whisper-cli}"
+WHISPER_THREADS="\${WHISPER_THREADS:-8}"
+FORCE=0
 
-# Script to transcribe all Hebrew lecture videos using whisper.cpp
-# Optimized for Apple Silicon (M-series processors)
-
-# Set paths
-BASE_DIR="/Users/meir.dv/Desktop/Videos"
-INPUT_DIR="$BASE_DIR/Input"
-OUTPUT_DIR="$BASE_DIR/output"
-WHISPER_DIR="$BASE_DIR/whisper.cpp"
-MODEL_PATH="$WHISPER_DIR/models/ggml-large-v3.bin"
-WHISPER_CLI="$WHISPER_DIR/build/bin/whisper-cli"
-
-# Create output directory if it doesn't exist
-mkdir -p "$OUTPUT_DIR"
-
-# Function to transcribe a single video
-transcribe_video() {
-    local video_path="$1"
-    local video_name=$(basename "$video_path")
-    local video_dir=$(dirname "$video_path")
-    local folder_name=$(basename "$video_dir")
-    
-    # Remove file extension
-    local base_name="${video_name%.*}"
-    
-    # Create output subdirectory for this course folder
-    local course_output_dir="$OUTPUT_DIR/$folder_name"
-    mkdir -p "$course_output_dir"
-    
-    # Create temp directory for audio extraction
-    local temp_dir="$BASE_DIR/temp_audio"
-    mkdir -p "$temp_dir"
-    
-    local temp_audio="$temp_dir/${base_name}.wav"
-    
-    echo "=========================================="
-    echo "Transcribing: $video_name"
-    echo "Course: $folder_name"
-    echo "=========================================="
-    
-    # Extract audio from video using ffmpeg
-    echo "Extracting audio from video..."
-    ffmpeg -i "$video_path" -ar 16000 -ac 1 -c:a pcm_s16le "$temp_audio" -y 2>&1
-    
-    if [ $? -ne 0 ] || [ ! -f "$temp_audio" ]; then
-        echo "✗ Failed to extract audio from: $video_name"
-        echo "FFmpeg error occurred. Check video file integrity."
-        return 1
-    fi
-    
-    echo "Audio extracted successfully. Starting transcription..."
-    
-    # Run whisper with Hebrew language and optimized settings for Apple Silicon
-    # -l he: Hebrew language
-    # -m: model path
-    # -f: input file
-    # -of: output filename (without extension)
-    # -otxt: output text file
-    # -osrt: output SRT file with timestamps
-    # -ovtt: output VTT file with timestamps
-    # -t 8: use 8 threads (good for M-series)
-    # --processors 1: use 1 processor for audio processing
-    # --split-on-word: split on word for better timestamp accuracy
-    
-    DYLD_LIBRARY_PATH="$WHISPER_DIR/build/src:$WHISPER_DIR/build/ggml/src:$WHISPER_DIR/build/ggml/src/ggml-blas:$WHISPER_DIR/build/ggml/src/ggml-metal" "$WHISPER_CLI" \
-        -l he \
-        -m "$MODEL_PATH" \
-        -f "$temp_audio" \
-        -of "$course_output_dir/$base_name" \
-        -otxt \
-        -osrt \
-        -ovtt \
-        -t 8 \
-        --processors 1 \
-        --split-on-word \
-        --max-len 30 \
-        --temperature 0.0
-    
-    local whisper_status=$?
-    
-    # Clean up temporary audio file
-    rm -f "$temp_audio"
-    
-    if [ $whisper_status -eq 0 ]; then
-        echo "✓ Successfully transcribed: $video_name"
-        echo "  Output files:"
-        echo "  - $course_output_dir/$base_name.txt"
-        echo "  - $course_output_dir/$base_name.srt"
-        echo "  - $course_output_dir/$base_name.vtt"
-    else
-        echo "✗ Failed to transcribe: $video_name"
-    fi
-    echo ""
+if [[ "$#" -eq 1 && "$1" == "--force" ]]; then FORCE=1
+elif [[ "$#" -ne 0 ]]; then printf 'Usage: %s [--force]\n' "$0" >&2; exit 2
+fi
+if [[ ! -d "$INPUT_DIR" ]]; then
+    printf 'Input directory not found: %s\n' "$INPUT_DIR" >&2; exit 1
+fi
+command -v ffmpeg >/dev/null 2>&1 || { echo "ffmpeg is required" >&2; exit 1; }
+[[ -x "$WHISPER_CLI" && -s "$MODEL_PATH" ]] || {
+    printf 'Whisper executable or model missing: %s / %s\n' "$WHISPER_CLI" "$MODEL_PATH" >&2
+    exit 1
 }
+[[ "$WHISPER_THREADS" =~ ^[1-9][0-9]*$ ]] || {
+    echo 'WHISPER_THREADS must be a positive integer' >&2; exit 2
+}
+mkdir -p "$OUTPUT_DIR" || exit 1
+INPUT_ROOT="$(cd "$INPUT_DIR" && pwd -P)"
+OUTPUT_ROOT="$(cd "$OUTPUT_DIR" && pwd -P)"
 
-# Find and transcribe all video files in Input directory
-echo "Starting transcription of all Hebrew lecture videos..."
-echo "Base directory: $BASE_DIR"
-echo ""
-
-# Process DL folder (Deep Learning)
-if [ -d "$INPUT_DIR/DL" ]; then
-    echo "Processing Deep Learning videos..."
-    for video in "$INPUT_DIR/DL"/*.mp4; do
-        if [ -f "$video" ]; then
-            transcribe_video "$video"
-        fi
+transcribe_video() (
+    local video="$1" relative dirname_part video_name destination prefix scratch ext
+    relative="\${video#"$INPUT_ROOT"/}"
+    dirname_part="$(dirname "$relative")"
+    video_name="$(basename "$relative")"
+    destination="$OUTPUT_ROOT"
+    [[ "$dirname_part" == "." ]] || destination="$OUTPUT_ROOT/$dirname_part"
+    mkdir -p "$destination" || exit 1
+    # The original extension avoids collisions between same-stem videos.
+    prefix="$destination/$video_name"
+    if [[ "$FORCE" -eq 0 &&
+        -s "$prefix.txt" && -s "$prefix.srt" && -s "$prefix.vtt" &&
+        "$prefix.txt" -nt "$video" && "$prefix.srt" -nt "$video" &&
+        "$prefix.vtt" -nt "$video" && "$prefix.txt" -nt "$MODEL_PATH" ]]; then
+        printf 'SKIP %s\n' "$relative"
+        exit 0
+    fi
+    scratch="$(mktemp -d "$destination/.transcribe.XXXXXXXX")" || exit 1
+    trap 'rm -rf "$scratch"' EXIT
+    printf 'TRANSCRIBE %s\n' "$relative"
+    if ! ffmpeg -nostdin -hide_banner -loglevel error -y -i "$video" \
+        -vn -ar 16000 -ac 1 -c:a pcm_s16le "$scratch/audio.wav"; then
+        printf 'FAIL audio extraction: %s\n' "$relative" >&2
+        exit 1
+    fi
+    if ! DYLD_LIBRARY_PATH="$WHISPER_DIR/build/src:$WHISPER_DIR/build/ggml/src:$WHISPER_DIR/build/ggml/src/ggml-blas:$WHISPER_DIR/build/ggml/src/ggml-metal\${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}" \
+        "$WHISPER_CLI" -l he -m "$MODEL_PATH" -f "$scratch/audio.wav" \
+        -of "$scratch/result" -otxt -osrt -ovtt -t "$WHISPER_THREADS" \
+        --processors 1 --split-on-word --max-len 30 --temperature 0.0; then
+        printf 'FAIL whisper: %s\n' "$relative" >&2
+        exit 1
+    fi
+    for ext in txt srt vtt; do
+        [[ -s "$scratch/result.$ext" ]] || {
+            printf 'FAIL missing %s output: %s\n' "$ext" "$relative" >&2
+            exit 1
+        }
     done
-fi
-
-# Process RM folder (Research Methods)
-if [ -d "$INPUT_DIR/RM" ]; then
-    echo "Processing Research Methods videos..."
-    for video in "$INPUT_DIR/RM"/*.mp4; do
-        if [ -f "$video" ]; then
-            transcribe_video "$video"
-        fi
+    # No existing output is replaced until all three formats are present.
+    for ext in txt srt vtt; do
+        mv -f "$scratch/result.$ext" "$prefix.$ext" || exit 1
     done
-fi
+    printf 'OK %s\n' "$relative"
+)
 
-# Process BD folder (Big Data) if it has files
-if [ -d "$INPUT_DIR/BD" ]; then
-    echo "Processing Big Data videos..."
-    for video in "$INPUT_DIR/BD"/*.mp4; do
-        if [ -f "$video" ]; then
-            transcribe_video "$video"
-        fi
-    done
-fi
-
-echo "=========================================="
-echo "Transcription complete!"
-echo "All transcripts saved to: $OUTPUT_DIR"
-echo "=========================================="
+total=0; ok=0; failed=0
+while IFS= read -r -d '' video; do
+    total=$((total + 1))
+    if transcribe_video "$video"; then ok=$((ok + 1))
+    else failed=$((failed + 1))
+    fi
+done < <(find "$INPUT_ROOT" -type f \( -iname '*.mp4' -o -iname '*.mkv' \
+    -o -iname '*.mov' -o -iname '*.webm' -o -iname '*.m4v' \) -print0)
+printf 'Completed: %s/%s transcribed or skipped; %s failed. Output: %s\n' \
+    "$ok" "$total" "$failed" "$OUTPUT_ROOT"
+[[ "$failed" -eq 0 ]]
